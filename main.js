@@ -248,14 +248,25 @@ const frameRateMonitor = {
         resultContainer.style.backgroundColor = 'rgba(0, 0, 15, 0.85)';
         resultContainer.style.backdropFilter = 'blur(10px)';
         resultContainer.style.borderRadius = '15px';
-        resultContainer.style.padding = '25px';
-        resultContainer.style.boxShadow = '0 0 30px rgba(0, 150, 255, 0.4), inset 0 0 15px rgba(0, 100, 255, 0.2)';
+        
+        // 根据屏幕大小调整内边距和宽度
+        const sizeFactor = performanceSettings.screenSizeFactor;
+        resultContainer.style.padding = `${25 * sizeFactor}px`;
+        resultContainer.style.boxShadow = `0 0 ${30 * sizeFactor}px rgba(0, 150, 255, 0.4), inset 0 0 ${15 * sizeFactor}px rgba(0, 100, 255, 0.2)`;
         resultContainer.style.zIndex = '3000';
         resultContainer.style.color = '#fff';
         resultContainer.style.fontFamily = '"Segoe UI", Arial, sans-serif';
         resultContainer.style.textAlign = 'center';
-        resultContainer.style.minWidth = '320px';
-        resultContainer.style.maxWidth = '90vw';
+        
+        // 在移动设备上调整宽度
+        if (isMobileDevice()) {
+            resultContainer.style.minWidth = `${280 * sizeFactor}px`;
+            resultContainer.style.maxWidth = '95vw';
+        } else {
+            resultContainer.style.minWidth = '320px';
+            resultContainer.style.maxWidth = '90vw';
+        }
+        
         resultContainer.style.transition = 'all 0.5s ease-out';
         resultContainer.style.opacity = '0';
         resultContainer.style.transform = 'translate(-50%, -50%) scale(0.9)';
@@ -296,50 +307,59 @@ const frameRateMonitor = {
         
         resultContainer.style.border = `1px solid ${borderColor}`;
         
-        // 创建内部内容容器
+        // 创建内部内容容器 - 根据屏幕大小调整尺寸
+        const fontSizeTitle = Math.max(18, 24 * sizeFactor);
+        const fontSizeGrade = Math.max(70, 100 * sizeFactor);
+        const fontSizeScore = Math.max(26, 36 * sizeFactor);
+        const fontSizeDetails = Math.max(12, 14 * sizeFactor);
+        const fontSizeDetailsSmall = Math.max(10, 12 * sizeFactor);
+        const marginBottom = Math.max(15, 30 * sizeFactor);
+        const circleSize = Math.max(100, 140 * sizeFactor);
+        const circleOuterSize = Math.max(120, 160 * sizeFactor);
+        
         const contentHtml = `
             <div style="position: relative; overflow: hidden;">
                 <!-- 标题 -->
-                <div style="font-size: 24px; margin-bottom: 30px; font-weight: 300; letter-spacing: 2px; text-transform: uppercase; position: relative;">
+                <div style="font-size: ${fontSizeTitle}px; margin-bottom: ${marginBottom}px; font-weight: 300; letter-spacing: 2px; text-transform: uppercase; position: relative;">
                     <span style="position: relative; z-index: 2;">性能评分</span>
                     <div style="position: absolute; height: 1px; width: 60%; bottom: -8px; left: 20%; background: linear-gradient(to right, transparent, ${borderColor}, transparent);"></div>
                 </div>
                 
                 <!-- 装饰图形 -->
-                <div style="position: absolute; width: 150px; height: 150px; border-radius: 50%; top: -30px; right: -30px; background: radial-gradient(circle at center, ${gradientColors[0]} 0%, transparent 70%); opacity: 0.15; pointer-events: none;"></div>
-                <div style="position: absolute; width: 100px; height: 100px; border-radius: 50%; bottom: -20px; left: -20px; background: radial-gradient(circle at center, ${gradientColors[1]} 0%, transparent 70%); opacity: 0.1; pointer-events: none;"></div>
+                <div style="position: absolute; width: ${150 * sizeFactor}px; height: ${150 * sizeFactor}px; border-radius: 50%; top: ${-30 * sizeFactor}px; right: ${-30 * sizeFactor}px; background: radial-gradient(circle at center, ${gradientColors[0]} 0%, transparent 70%); opacity: 0.15; pointer-events: none;"></div>
+                <div style="position: absolute; width: ${100 * sizeFactor}px; height: ${100 * sizeFactor}px; border-radius: 50%; bottom: ${-20 * sizeFactor}px; left: ${-20 * sizeFactor}px; background: radial-gradient(circle at center, ${gradientColors[1]} 0%, transparent 70%); opacity: 0.1; pointer-events: none;"></div>
                 
                 <!-- 主评分 -->
-                <div style="position: relative; display: flex; align-items: center; justify-content: center; margin: 20px 0 30px;">
-                    <div style="font-size: 100px; font-weight: 700; text-align: center; position: relative; line-height: 1; color: ${gradeColor}; text-shadow: 0 0 15px ${gradeColor}4D;">${gradeText}</div>
-                    <div style="position: absolute; width: 140px; height: 140px; border: 2px solid ${borderColor}; border-radius: 50%; opacity: 0.3;"></div>
-                    <div style="position: absolute; width: 160px; height: 160px; border: 1px solid ${borderColor}; border-radius: 50%; opacity: 0.2;"></div>
+                <div style="position: relative; display: flex; align-items: center; justify-content: center; margin: ${20 * sizeFactor}px 0 ${30 * sizeFactor}px;">
+                    <div style="font-size: ${fontSizeGrade}px; font-weight: 700; text-align: center; position: relative; line-height: 1; color: ${gradeColor}; text-shadow: 0 0 15px ${gradeColor}4D;">${gradeText}</div>
+                    <div style="position: absolute; width: ${circleSize}px; height: ${circleSize}px; border: 2px solid ${borderColor}; border-radius: 50%; opacity: 0.3;"></div>
+                    <div style="position: absolute; width: ${circleOuterSize}px; height: ${circleOuterSize}px; border: 1px solid ${borderColor}; border-radius: 50%; opacity: 0.2;"></div>
                 </div>
                 
                 <!-- 分数显示 -->
-                <div style="font-size: 36px; font-weight: 300; margin: 15px 0 25px; letter-spacing: 1px;">
-                    ${score}<span style="font-size: 20px; opacity: 0.7;">分</span>
+                <div style="font-size: ${fontSizeScore}px; font-weight: 300; margin: ${15 * sizeFactor}px 0 ${25 * sizeFactor}px; letter-spacing: 1px;">
+                    ${score}<span style="font-size: ${fontSizeScore * 0.55}px; opacity: 0.7;">分</span>
                 </div>
                 
                 <!-- 详细数据 -->
-                <div style="background: rgba(0, 30, 60, 0.3); border-radius: 10px; padding: 15px; margin: 5px 0 20px;">
-                    <div style="margin: 10px 0; display: flex; justify-content: space-between; text-align: left; font-size: 14px;">
+                <div style="background: rgba(0, 30, 60, 0.3); border-radius: 10px; padding: ${15 * sizeFactor}px; margin: 5px 0 ${20 * sizeFactor}px;">
+                    <div style="margin: ${10 * sizeFactor}px 0; display: flex; justify-content: space-between; text-align: left; font-size: ${fontSizeDetails}px;">
                         <div style="opacity: 0.8;">平均帧率</div>
-                        <div style="font-weight: 500;">${this.averageFPS.toFixed(1)} <span style="opacity: 0.7; font-size: 12px;">FPS</span></div>
+                        <div style="font-weight: 500;">${this.averageFPS.toFixed(1)} <span style="opacity: 0.7; font-size: ${fontSizeDetailsSmall}px;">FPS</span></div>
                     </div>
-                    <div style="margin: 10px 0; display: flex; justify-content: space-between; text-align: left; font-size: 14px;">
+                    <div style="margin: ${10 * sizeFactor}px 0; display: flex; justify-content: space-between; text-align: left; font-size: ${fontSizeDetails}px;">
                         <div style="opacity: 0.8;">最低帧率</div>
-                        <div style="font-weight: 500;">${this.minFPS} <span style="opacity: 0.7; font-size: 12px;">FPS</span></div>
+                        <div style="font-weight: 500;">${this.minFPS} <span style="opacity: 0.7; font-size: ${fontSizeDetailsSmall}px;">FPS</span></div>
                     </div>
-                    <div style="margin: 10px 0; display: flex; justify-content: space-between; text-align: left; font-size: 14px;">
+                    <div style="margin: ${10 * sizeFactor}px 0; display: flex; justify-content: space-between; text-align: left; font-size: ${fontSizeDetails}px;">
                         <div style="opacity: 0.8;">帧率稳定性</div>
-                        <div style="font-weight: 500;">${this.stability.toFixed(1)}<span style="opacity: 0.7; font-size: 12px;">%</span></div>
+                        <div style="font-weight: 500;">${this.stability.toFixed(1)}<span style="opacity: 0.7; font-size: ${fontSizeDetailsSmall}px;">%</span></div>
                     </div>
                 </div>
                 
                 <!-- 关闭按钮 -->
-                <button id="closeResultBtn" style="margin-top: 10px; padding: 10px 25px; background: linear-gradient(to right, ${gradientColors[0]}, ${gradientColors[1]}); border: none; border-radius: 30px; color: #fff; cursor: pointer; font-weight: 500; letter-spacing: 1px; position: relative; overflow: hidden; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);">
-                    <span style="position: relative; z-index: 2;">关闭</span>
+                <button id="closeResultBtn" style="margin-top: ${10 * sizeFactor}px; padding: ${10 * sizeFactor}px ${25 * sizeFactor}px; background: linear-gradient(to right, ${gradientColors[0]}, ${gradientColors[1]}); border: none; border-radius: 30px; color: #fff; cursor: pointer; font-weight: 500; letter-spacing: 1px; position: relative; overflow: hidden; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);">
+                    <span style="position: relative; z-index: 2; font-size: ${Math.max(14, 16 * sizeFactor)}px;">关闭</span>
                     <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(to right, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.2)); opacity: 0; transition: opacity 0.3s;" id="buttonHoverEffect"></div>
                 </button>
             </div>
@@ -370,6 +390,22 @@ const frameRateMonitor = {
                 }
             }, 500);
         });
+        
+        // 添加触摸关闭事件（针对移动设备）
+        if (isMobileDevice()) {
+            resultContainer.addEventListener('click', (e) => {
+                // 只有点击背景时才关闭，避免点击内容区域误触
+                if (e.target === resultContainer) {
+                    resultContainer.style.opacity = '0';
+                    resultContainer.style.transform = 'translate(-50%, -50%) scale(0.9)';
+                    setTimeout(() => {
+                        if (document.body.contains(resultContainer)) {
+                            resultContainer.remove();
+                        }
+                    }, 500);
+                }
+            });
+        }
         
         // 淡入动画
         setTimeout(() => {
@@ -405,7 +441,8 @@ function animate() {
     if(elapsed > 500) {
         currentFPS = Math.min(Math.round((globalFrameCount * 1000) / elapsed), performanceSettings.maxFPS);
         if(performanceSettings.showFPS && permanentFpsCounter) {
-            permanentFpsCounter.textContent = `FPS: ${currentFPS}`;
+            // 添加max提示到FPS计数器
+            permanentFpsCounter.textContent = `FPS: ${currentFPS} (${performanceSettings.displayFPSLimit} max)`;
         }
         globalFpsUpdateTime = now;
         globalFrameCount = 0;
@@ -425,6 +462,12 @@ window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
+    
+    // 更新屏幕尺寸系数
+    performanceSettings.screenSizeFactor = getScreenSizeFactor();
+    
+    // 根据屏幕尺寸调整UI元素
+    updateUIForScreenSize();
 });
 
 // 移除之前的点击事件，添加新的点击事件，确保只有点击地球才会触发特效
@@ -468,24 +511,128 @@ const isMacOS = () => {
     return /Mac OS/i.test(navigator.userAgent) && !/iPhone|iPad|iPod/i.test(navigator.userAgent);
 };
 
-// 性能自适应设置
-const performanceSettings = {
-    particleCount: isLowEndDevice() ? 200 : 400,  // 增加粒子数量
-    backgroundParticleCount: isLowEndDevice() ? 80 : 180,  // 增加背景粒子
-    skipFrames: isLowEndDevice() ? 2 : 1,
-    trailEnabled: true, // 始终启用轨迹
-    glowEnabled: true,  // 始终启用发光
-    trailLength: isLowEndDevice() ? 4 : 7,  // 增加轨迹长度
-    backgroundDrawInterval: isLowEndDevice() ? 2 : 1,  // 减少间隔，更密集
-    useScreenComposite: true,  // 始终使用更亮的混合模式
-    renderStep: 1,  // 渲染所有粒子
-    showFPS: true,  // 显示帧率
-    maxFPS: isMacOS() ? 60 : 120,  // 针对苹果电脑设置最大帧率为60，其他为120
-    particleSizeVariance: 0.8, // 粒子大小变化
-    colorHarmony: true // 启用颜色协调
+// 检测是否为移动设备
+const isMobileDevice = () => {
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
+           (window.innerWidth <= 768);
 };
 
-// 创建虫洞效果
+// 获取设备屏幕尺寸系数 (小屏幕设备返回较小的系数)
+const getScreenSizeFactor = () => {
+    const width = window.innerWidth;
+    if (width <= 375) return 0.6;      // 特小屏幕 (iPhone SE等)
+    else if (width <= 480) return 0.7;  // 小屏幕
+    else if (width <= 768) return 0.8;  // 中屏幕平板或大手机
+    else if (width <= 1024) return 0.9; // 大屏幕平板
+    return 1.0;                         // 桌面设备
+};
+
+// 获取FPS显示限制：苹果电脑为60，手机设备和其他台式机为120
+const getFpsLimit = () => {
+    // 对于界面显示，苹果电脑显示60，其他所有设备(包括手机)显示120
+    if (isMacOS()) {
+        return 60;
+    } else {
+        return 120;
+    }
+};
+
+// 用于实际性能限制：苹果电脑和移动设备为60，其他为120
+const getActualFpsLimit = () => {
+    if (isMacOS()) {
+        return 60;
+    } else if (isMobileDevice()) {
+        return 60; // 移动设备实际限制为60fps
+    } else {
+        return 120;
+    }
+};
+
+// 性能自适应设置
+const performanceSettings = {
+    particleCount: isLowEndDevice() ? 
+        (isMobileDevice() ? 120 : 200) : 
+        (isMobileDevice() ? 200 : 400),  // 移动设备进一步减少粒子数量
+    backgroundParticleCount: isLowEndDevice() ? 
+        (isMobileDevice() ? 40 : 80) : 
+        (isMobileDevice() ? 100 : 180),  // 移动设备减少背景粒子
+    skipFrames: isLowEndDevice() ? 
+        (isMobileDevice() ? 3 : 2) : 
+        (isMobileDevice() ? 2 : 1),      // 移动设备跳过更多帧
+    trailEnabled: true, // 始终启用轨迹
+    glowEnabled: !isMobileDevice() || !isLowEndDevice(), // 低端移动设备禁用发光效果
+    trailLength: isLowEndDevice() ? 
+        (isMobileDevice() ? 3 : 4) : 
+        (isMobileDevice() ? 5 : 7),      // 减少轨迹长度
+    backgroundDrawInterval: isLowEndDevice() ? 
+        (isMobileDevice() ? 3 : 2) : 
+        (isMobileDevice() ? 2 : 1),      // 减少背景粒子绘制频率
+    useScreenComposite: true,  // 始终使用更亮的混合模式
+    renderStep: isMobileDevice() ? 2 : 1, // 移动设备降低渲染密度
+    showFPS: true,  // 显示帧率
+    maxFPS: getActualFpsLimit(),   // 实际限制：苹果电脑和移动设备60fps，其他设备120fps
+    displayFPSLimit: getFpsLimit(), // 显示限制：苹果电脑60，其他所有设备(包括手机)120
+    particleSizeVariance: isMobileDevice() ? 0.6 : 0.8, // 移动设备减少粒子大小变化
+    colorHarmony: true, // 启用颜色协调
+    screenSizeFactor: getScreenSizeFactor() // 屏幕尺寸系数
+};
+
+// 在window.addEventListener('resize')添加以下代码
+window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    
+    // 更新屏幕尺寸系数
+    performanceSettings.screenSizeFactor = getScreenSizeFactor();
+    
+    // 根据屏幕尺寸调整UI元素
+    updateUIForScreenSize();
+});
+
+// 添加UI元素响应式调整函数
+function updateUIForScreenSize() {
+    const sizeFactor = performanceSettings.screenSizeFactor;
+    
+    // 调整FPS计数器位置和大小
+    if (permanentFpsCounter) {
+        permanentFpsCounter.style.fontSize = `${14 * sizeFactor}px`;
+        permanentFpsCounter.style.padding = `${5 * sizeFactor}px ${10 * sizeFactor}px`;
+        permanentFpsCounter.style.borderRadius = `${3 * sizeFactor}px`;
+        
+        // 在小屏幕上调整位置到左上角
+        if (sizeFactor < 0.8) {
+            permanentFpsCounter.style.right = 'auto';
+            permanentFpsCounter.style.left = '10px';
+        } else {
+            permanentFpsCounter.style.right = '10px';
+            permanentFpsCounter.style.left = 'auto';
+        }
+    }
+    
+    // 调整点击提示位置和大小
+    if (clickToStartHint) {
+        clickToStartHint.style.fontSize = `${13 * sizeFactor}px`;
+        clickToStartHint.style.padding = `${5 * sizeFactor}px ${10 * sizeFactor}px`;
+        clickToStartHint.style.borderRadius = `${3 * sizeFactor}px`;
+        
+        // 在小屏幕上调整位置到左上角下方
+        if (sizeFactor < 0.8) {
+            clickToStartHint.style.right = 'auto';
+            clickToStartHint.style.left = '10px';
+            clickToStartHint.style.top = '45px';
+        } else {
+            clickToStartHint.style.right = '10px';
+            clickToStartHint.style.left = 'auto';
+            clickToStartHint.style.top = '45px';
+        }
+    }
+}
+
+// 调用一次初始化UI
+setTimeout(updateUIForScreenSize, 100);
+
+// 修改创建虫洞效果函数
 function createWormholeEffect() {
     // 启动帧率监控
     frameRateMonitor.start();
@@ -493,19 +640,24 @@ function createWormholeEffect() {
     const centerX = window.innerWidth / 2;
     const centerY = window.innerHeight / 2;
     
-    // 创建虫洞容器
+    // 获取屏幕大小系数
+    const sizeFactor = performanceSettings.screenSizeFactor;
+    
+    // 创建虫洞容器 - 调整大小适应屏幕
     const wormhole = document.createElement('div');
     wormhole.className = 'wormhole';
     wormhole.style.position = 'fixed';
     wormhole.style.top = '50%';
     wormhole.style.left = '50%';
     wormhole.style.transform = 'translate(-50%, -50%)';
-    wormhole.style.width = '300px';
-    wormhole.style.height = '300px';
+    // 根据屏幕大小调整虫洞尺寸
+    const wormholeSize = 300 * sizeFactor;
+    wormhole.style.width = `${wormholeSize}px`;
+    wormhole.style.height = `${wormholeSize}px`;
     wormhole.style.borderRadius = '50%';
     // 使用更平滑的径向渐变
     wormhole.style.background = 'radial-gradient(circle, rgba(0,0,0,0.98) 0%, rgba(0,0,0,0.95) 30%, rgba(0,0,0,0.9) 40%, rgba(0,0,0,0.4) 60%, rgba(0,0,0,0) 75%)';
-    wormhole.style.boxShadow = '0 0 80px rgba(150,50,255,0.8), inset 0 0 30px rgba(180,100,255,0.5)'; // 双重发光效果
+    wormhole.style.boxShadow = `0 0 ${80 * sizeFactor}px rgba(150,50,255,0.8), inset 0 0 ${30 * sizeFactor}px rgba(180,100,255,0.5)`; // 双重发光效果
     wormhole.style.zIndex = '1000';
     document.body.appendChild(wormhole);
     
@@ -513,7 +665,7 @@ function createWormholeEffect() {
     currentWormhole = wormhole;
 
     // 获取设备像素比并自适应降低分辨率
-    const devicePixelRatio = Math.min(window.devicePixelRatio, 2);
+    const devicePixelRatio = Math.min(window.devicePixelRatio, isMobileDevice() ? 1.5 : 2);
     
     // 使用canvas绘制粒子
     const canvas = document.createElement('canvas');
@@ -535,9 +687,9 @@ function createWormholeEffect() {
     // 使用更好的混合模式提升视觉效果
     ctx.globalCompositeOperation = 'screen';
     
-    // 设置更大的半径和粒子效果
-    let radius = 100;
-    let ringThickness = 30; // 增加环厚度
+    // 设置更大的半径和粒子效果 - 根据屏幕大小调整
+    let radius = 100 * sizeFactor;
+    let ringThickness = 30 * sizeFactor; // 增加环厚度
     
     // 使用更协调的颜色组合
     const baseColors = [
@@ -1536,17 +1688,43 @@ function createWormholeEffect() {
         hint.style.transform = 'translateX(-50%)';
         hint.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
         hint.style.color = '#80ffff';
-        hint.style.padding = '12px 25px';
-        hint.style.borderRadius = '5px';
+        
+        // 响应式调整大小
+        const sizeFactor = performanceSettings.screenSizeFactor;
+        hint.style.padding = `${12 * sizeFactor}px ${25 * sizeFactor}px`;
+        hint.style.borderRadius = `${5 * sizeFactor}px`;
         hint.style.fontFamily = 'Arial, sans-serif';
-        hint.style.fontSize = '16px';
+        hint.style.fontSize = `${16 * sizeFactor}px`;
         hint.style.fontWeight = 'bold';
-        hint.style.boxShadow = '0 0 15px rgba(0, 255, 255, 0.5)';
+        hint.style.boxShadow = `0 0 ${15 * sizeFactor}px rgba(0, 255, 255, 0.5)`;
         hint.style.zIndex = '2000';
         hint.style.pointerEvents = 'none';
         hint.style.opacity = '0';
         hint.style.transition = 'opacity 0.5s';
-        hint.textContent = '按ESC键返回';
+        
+        // 根据设备类型显示不同的提示文本
+        if (isMobileDevice()) {
+            hint.innerHTML = `
+                <div style="display: flex; align-items: center; justify-content: center;">
+                    <span style="margin-right: 10px;">点击地球返回</span>
+                    <svg width="${20 * sizeFactor}" height="${20 * sizeFactor}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M3 12h18M3 6h18M3 18h18"></path>
+                    </svg>
+                </div>
+            `;
+            // 在移动设备上，提示应可点击
+            hint.style.pointerEvents = 'auto';
+            hint.style.cursor = 'pointer';
+            
+            // 点击提示可以返回
+            hint.addEventListener('click', () => {
+                resetView();
+                cameraAnimationCompleted = false;
+            });
+        } else {
+            hint.textContent = '按ESC键返回';
+        }
+        
         document.body.appendChild(hint);
         
         // 淡入效果
