@@ -132,6 +132,306 @@ clickToStartHint.addEventListener('click', () => {
 });
 document.body.appendChild(clickToStartHint);
 
+// 添加全屏检查和警告
+let fullscreenWarningActive = false;
+let fullscreenWarningElement = null;
+let fullscreenFlashInterval = null;
+
+// 创建全屏警告元素
+function createFullscreenWarning() {
+    if (fullscreenWarningElement) return;
+    
+    // 创建警告容器
+    fullscreenWarningElement = document.createElement('div');
+    fullscreenWarningElement.id = 'fullscreenWarning';
+    fullscreenWarningElement.style.position = 'fixed';
+    fullscreenWarningElement.style.top = '0';
+    fullscreenWarningElement.style.left = '0';
+    fullscreenWarningElement.style.width = '100%';
+    fullscreenWarningElement.style.height = '100%';
+    fullscreenWarningElement.style.backgroundColor = 'rgba(255, 0, 0, 0.3)';
+    fullscreenWarningElement.style.display = 'flex';
+    fullscreenWarningElement.style.flexDirection = 'column';
+    fullscreenWarningElement.style.justifyContent = 'center';
+    fullscreenWarningElement.style.alignItems = 'center';
+    fullscreenWarningElement.style.zIndex = '10000';
+    fullscreenWarningElement.style.opacity = '0';
+    fullscreenWarningElement.style.transition = 'opacity 0.5s';
+    fullscreenWarningElement.style.backdropFilter = 'blur(5px)';
+    
+    // 创建警告内容
+    const warningContent = document.createElement('div');
+    warningContent.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+    warningContent.style.borderRadius = '15px';
+    warningContent.style.padding = '30px 40px';
+    warningContent.style.maxWidth = '90%';
+    warningContent.style.width = '500px';
+    warningContent.style.textAlign = 'center';
+    warningContent.style.boxShadow = '0 0 30px rgba(255, 0, 0, 0.7)';
+    warningContent.style.border = '2px solid rgba(255, 50, 50, 0.8)';
+    
+    // 警告图标
+    const warningIcon = document.createElement('div');
+    warningIcon.innerHTML = `<svg width="80" height="80" viewBox="0 0 24 24" fill="none">
+        <path d="M12 4L2 20H22L12 4Z" stroke="#ff3333" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M12 16V16.01" stroke="#ff3333" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M12 12V14" stroke="#ff3333" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>`;
+    
+    // 警告标题
+    const warningTitle = document.createElement('h2');
+    warningTitle.textContent = '请切换到全屏模式';
+    warningTitle.style.color = '#ff3333';
+    warningTitle.style.fontFamily = 'Arial, sans-serif';
+    warningTitle.style.margin = '20px 0';
+    warningTitle.style.fontSize = '24px';
+    
+    // 警告文本
+    const warningText = document.createElement('p');
+    warningText.innerHTML = '为了获得最佳体验，本程序<strong>必须</strong>在全屏模式下运行。<br>请点击下方按钮进入全屏模式。';
+    warningText.style.color = '#ffffff';
+    warningText.style.fontFamily = 'Arial, sans-serif';
+    warningText.style.fontSize = '16px';
+    warningText.style.lineHeight = '1.6';
+    warningText.style.margin = '0 0 25px 0';
+    
+    // 全屏按钮
+    const fullscreenButton = document.createElement('button');
+    fullscreenButton.textContent = '进入全屏模式';
+    fullscreenButton.style.backgroundColor = '#ff3333';
+    fullscreenButton.style.color = 'white';
+    fullscreenButton.style.border = 'none';
+    fullscreenButton.style.borderRadius = '30px';
+    fullscreenButton.style.padding = '12px 30px';
+    fullscreenButton.style.fontSize = '16px';
+    fullscreenButton.style.fontWeight = 'bold';
+    fullscreenButton.style.cursor = 'pointer';
+    fullscreenButton.style.transition = 'all 0.3s';
+    fullscreenButton.style.boxShadow = '0 4px 15px rgba(255, 0, 0, 0.4)';
+    
+    // 按钮悬停效果
+    fullscreenButton.addEventListener('mouseenter', () => {
+        fullscreenButton.style.backgroundColor = '#ff5555';
+        fullscreenButton.style.transform = 'scale(1.05)';
+    });
+    
+    fullscreenButton.addEventListener('mouseleave', () => {
+        fullscreenButton.style.backgroundColor = '#ff3333';
+        fullscreenButton.style.transform = 'scale(1)';
+    });
+    
+    // 点击进入全屏
+    fullscreenButton.addEventListener('click', () => {
+        requestFullscreen();
+    });
+    
+    // 组装警告元素
+    warningContent.appendChild(warningIcon);
+    warningContent.appendChild(warningTitle);
+    warningContent.appendChild(warningText);
+    warningContent.appendChild(fullscreenButton);
+    fullscreenWarningElement.appendChild(warningContent);
+    
+    document.body.appendChild(fullscreenWarningElement);
+    
+    // 淡入显示
+    setTimeout(() => {
+        fullscreenWarningElement.style.opacity = '1';
+    }, 50);
+}
+
+// 添加刷新页面按钮
+function createRefreshButton() {
+    console.log('创建刷新按钮');
+    const refreshBtn = document.createElement('div');
+    refreshBtn.id = 'refresh-container';
+    refreshBtn.style.cssText = `
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        z-index: 10000;
+        font-family: 'Arial', sans-serif;
+    `;
+
+    const refreshButton = document.createElement('button');
+    refreshButton.id = 'refresh-button';
+    refreshButton.textContent = '刷新页面';
+    refreshButton.style.cssText = `
+        padding: 10px 20px;
+        background: rgba(0, 100, 200, 0.7);
+        color: white;
+        border: none;
+        border-radius: 5px;
+        font-size: 16px;
+        cursor: pointer;
+        transition: all 0.3s;
+        box-shadow: 0 0 10px rgba(0, 150, 255, 0.5);
+    `;
+
+    const refreshHint = document.createElement('div');
+    refreshHint.id = 'refresh-hint';
+    refreshHint.textContent = '出现任何问题建议刷新';
+    refreshHint.style.cssText = `
+        margin-top: 5px;
+        color: rgba(255, 255, 255, 0.8);
+        font-size: 12px;
+        text-align: center;
+        max-width: 150px;
+    `;
+
+    refreshButton.addEventListener('mouseover', () => {
+        refreshButton.style.backgroundColor = 'rgba(0, 120, 220, 0.9)';
+        refreshButton.style.boxShadow = '0 0 15px rgba(0, 150, 255, 0.7)';
+    });
+
+    refreshButton.addEventListener('mouseout', () => {
+        refreshButton.style.backgroundColor = 'rgba(0, 100, 200, 0.7)';
+        refreshButton.style.boxShadow = '0 0 10px rgba(0, 150, 255, 0.5)';
+    });
+
+    refreshButton.addEventListener('click', () => {
+        refreshButton.style.transform = 'scale(0.95)';
+        setTimeout(() => {
+            refreshButton.style.transform = 'scale(1)';
+            window.location.reload();
+        }, 100);
+    });
+
+    refreshBtn.appendChild(refreshButton);
+    refreshBtn.appendChild(refreshHint);
+    document.body.appendChild(refreshBtn);
+    
+    console.log('刷新按钮已创建', refreshBtn);
+    return refreshBtn;
+}
+
+// 开始红色闪烁效果
+function startFullscreenWarningFlash() {
+    if (fullscreenFlashInterval) return;
+    
+    let flashState = false;
+    fullscreenFlashInterval = setInterval(() => {
+        if (!fullscreenWarningElement) return;
+        
+        flashState = !flashState;
+        if (flashState) {
+            fullscreenWarningElement.style.backgroundColor = 'rgba(255, 0, 0, 0.5)';
+        } else {
+            fullscreenWarningElement.style.backgroundColor = 'rgba(255, 0, 0, 0.3)';
+        }
+    }, 500);
+}
+
+// 检查是否处于全屏模式
+function isFullscreen() {
+    return !!(
+        document.fullscreenElement || 
+        document.webkitFullscreenElement || 
+        document.mozFullScreenElement || 
+        document.msFullscreenElement
+    );
+}
+
+// 请求全屏
+function requestFullscreen() {
+    const elem = document.documentElement;
+    
+    if (elem.requestFullscreen) {
+        elem.requestFullscreen();
+    } else if (elem.webkitRequestFullscreen) { /* Safari */
+        elem.webkitRequestFullscreen();
+    } else if (elem.msRequestFullscreen) { /* IE11 */
+        elem.msRequestFullscreen();
+    }
+}
+
+// 退出全屏
+function exitFullscreen() {
+    if (document.exitFullscreen) {
+        document.exitFullscreen();
+    } else if (document.webkitExitFullscreen) { /* Safari */
+        document.webkitExitFullscreen();
+    } else if (document.msExitFullscreen) { /* IE11 */
+        document.msExitFullscreen();
+    }
+}
+
+// 显示全屏警告
+function showFullscreenWarning() {
+    if (fullscreenWarningActive) return;
+    
+    fullscreenWarningActive = true;
+    createFullscreenWarning();
+    startFullscreenWarningFlash();
+    
+    // 隐藏其他UI元素
+    if (clickToStartHint) clickToStartHint.style.display = 'none';
+    if (permanentFpsCounter) permanentFpsCounter.style.display = 'none';
+    
+    // 禁用地球旋转和交互
+    controls.enabled = false;
+    if (renderer && renderer.domElement) {
+        renderer.domElement.style.pointerEvents = 'none';
+    }
+}
+
+// 隐藏全屏警告
+function hideFullscreenWarning() {
+    if (!fullscreenWarningActive) return;
+    
+    fullscreenWarningActive = false;
+    
+    // 停止闪烁
+    if (fullscreenFlashInterval) {
+        clearInterval(fullscreenFlashInterval);
+        fullscreenFlashInterval = null;
+    }
+    
+    // 淡出并移除警告元素
+    if (fullscreenWarningElement) {
+        fullscreenWarningElement.style.opacity = '0';
+        setTimeout(() => {
+            if (fullscreenWarningElement && fullscreenWarningElement.parentNode) {
+                fullscreenWarningElement.parentNode.removeChild(fullscreenWarningElement);
+            }
+            fullscreenWarningElement = null;
+        }, 500);
+    }
+    
+    // 显示其他UI元素
+    if (clickToStartHint) clickToStartHint.style.display = 'block';
+    if (permanentFpsCounter) permanentFpsCounter.style.display = 'block';
+    
+    // 启用地球旋转和交互
+    controls.enabled = true;
+    if (renderer && renderer.domElement) {
+        renderer.domElement.style.pointerEvents = 'auto';
+    }
+}
+
+// 全屏变化事件监听
+document.addEventListener('fullscreenchange', checkFullscreenStatus);
+document.addEventListener('webkitfullscreenchange', checkFullscreenStatus);
+document.addEventListener('mozfullscreenchange', checkFullscreenStatus);
+document.addEventListener('MSFullscreenChange', checkFullscreenStatus);
+
+// 检查全屏状态并相应处理
+function checkFullscreenStatus() {
+    if (isFullscreen()) {
+        hideFullscreenWarning();
+    } else {
+        showFullscreenWarning();
+    }
+}
+
+// 页面加载时检查全屏状态
+window.addEventListener('load', () => {
+    checkFullscreenStatus();
+});
+
 // 全局FPS计算变量
 let globalFpsUpdateTime = performance.now();
 let globalFrameCount = 0;
@@ -146,17 +446,26 @@ let currentAnimationFrameId = null;
 const frameRateMonitor = {
     active: false,
     records: [],
-    startTime: 0,
-    lastRecordTime: 0,
     recordInterval: 1000, // 每秒记录一次
+    startTime: 0,
+    endTime: 0,
+    totalTime: 0, // 总完成时间（毫秒）
+    lastRecordTime: 0,
     averageFPS: 0,
     minFPS: 0,
     maxFPS: 0,
     stability: 0,
+    // 添加标准完成时间参考值（毫秒）
+    referenceCompletionTime: {
+        fast: 30000,   // 30秒 - 满分
+        standard: 40000, // 40秒 - 良好
+        slow: 50000    // 50秒 - 及格
+    },
     weightDistribution: {
-        average: 0.4,  // 平均帧率权重
-        minimum: 0.3,  // 最低帧率权重
-        stability: 0.3 // 稳定性权重
+        average: 0.3,     // 平均帧率权重降低
+        minimum: 0.2,     // 最低帧率权重降低 
+        stability: 0.2,   // 稳定性权重降低
+        time: 0.3         // 新增：完成时间权重
     },
     
     // 开始记录
@@ -187,6 +496,8 @@ const frameRateMonitor = {
         if (!this.active || this.records.length === 0) return;
         
         this.active = false;
+        this.endTime = performance.now();
+        this.totalTime = this.endTime - this.startTime;
         
         // 计算统计数据
         const fpsValues = this.records.map(r => r.fps);
@@ -204,7 +515,7 @@ const frameRateMonitor = {
         const stabilityPercentage = Math.max(0, 100 - (stdDeviation / this.averageFPS * 100));
         this.stability = stabilityPercentage;
         
-        console.log(`帧率统计：平均=${this.averageFPS.toFixed(1)}，最低=${this.minFPS}，最高=${this.maxFPS}，稳定性=${this.stability.toFixed(1)}%`);
+        console.log(`帧率统计：平均=${this.averageFPS.toFixed(1)}，最低=${this.minFPS}，最高=${this.maxFPS}，稳定性=${this.stability.toFixed(1)}%，完成时间=${(this.totalTime/1000).toFixed(1)}秒`);
         
         // 计算整体得分
         const score = this.calculateScore();
@@ -217,24 +528,102 @@ const frameRateMonitor = {
     
     // 计算性能评分（0-100分）
     calculateScore() {
-        // 平均帧率得分（越高越好，最高100分）
+        // 获取目标帧率
         const targetFPS = performanceSettings.maxFPS;
-        const averageScore = Math.min(100, (this.averageFPS / targetFPS) * 100);
         
-        // 最低帧率得分（最低帧率占目标帧率的百分比）
-        const minScore = Math.min(100, (this.minFPS / targetFPS) * 100);
+        // 平均帧率得分（放宽要求）
+        // 使用非线性映射函数，降低高帧率要求
+        // 当帧率为目标帧率的60%时，即可获得90分
+        const averageFpsRatio = this.averageFPS / targetFPS;
+        const averageScore = averageFpsRatio >= 0.9 ? 100 : 
+                            averageFpsRatio >= 0.7 ? 90 + (averageFpsRatio - 0.7) * 50 : 
+                            averageFpsRatio >= 0.5 ? 75 + (averageFpsRatio - 0.5) * 75 : 
+                            averageFpsRatio >= 0.3 ? 50 + (averageFpsRatio - 0.3) * 125 : 
+                            averageFpsRatio * 166.67; // 更平缓的曲线
+        
+        // 最低帧率得分（放宽要求）
+        // 只要最低帧率不低于目标帧率的40%，就能获得较高分数
+        const minFpsRatio = this.minFPS / targetFPS;
+        const minScore = minFpsRatio >= 0.7 ? 100 : 
+                        minFpsRatio >= 0.5 ? 90 + (minFpsRatio - 0.5) * 50 : 
+                        minFpsRatio >= 0.3 ? 70 + (minFpsRatio - 0.3) * 100 : 
+                        minFpsRatio * 233.33; // 最低帧率曲线也更平缓
         
         // 稳定性得分（已经是0-100）
-        const stabilityScore = this.stability;
+        // 稳定性得分也适当放宽，85%以上的稳定性就接近满分
+        const rawStabilityScore = this.stability;
+        const stabilityScore = rawStabilityScore >= 85 ? 100 : 
+                              rawStabilityScore >= 70 ? 90 + (rawStabilityScore - 70) * (10/15) : 
+                              rawStabilityScore >= 50 ? 75 + (rawStabilityScore - 50) * (15/20) : 
+                              rawStabilityScore;
+        
+        // 完成时间得分（越短越好）
+        let timeScore;
+        if (this.totalTime <= this.referenceCompletionTime.fast) {
+            // 快于参考快速时间
+            timeScore = 100;
+        } else if (this.totalTime <= this.referenceCompletionTime.standard) {
+            // 在快速与标准之间
+            const ratio = (this.referenceCompletionTime.standard - this.totalTime) / 
+                          (this.referenceCompletionTime.standard - this.referenceCompletionTime.fast);
+            timeScore = 80 + ratio * 20; // 80-100之间
+        } else if (this.totalTime <= this.referenceCompletionTime.slow) {
+            // 在标准与慢速之间
+            const ratio = (this.referenceCompletionTime.slow - this.totalTime) / 
+                          (this.referenceCompletionTime.slow - this.referenceCompletionTime.standard);
+            timeScore = 60 + ratio * 20; // 60-80之间
+        } else {
+            // 慢于参考慢速时间，也放宽要求
+            const ratio = Math.min(1, (this.totalTime - this.referenceCompletionTime.slow) / 
+                                    this.referenceCompletionTime.slow);
+            timeScore = Math.max(40, 60 - ratio * 20); // 最低40分（比原来的30分高）
+        }
         
         // 加权计算总分
         const totalScore = (
             averageScore * this.weightDistribution.average +
             minScore * this.weightDistribution.minimum +
-            stabilityScore * this.weightDistribution.stability
+            stabilityScore * this.weightDistribution.stability +
+            timeScore * this.weightDistribution.time
         );
         
+        console.log(`得分明细: 平均帧率=${averageScore.toFixed(1)}, 最低帧率=${minScore.toFixed(1)}, 稳定性=${stabilityScore.toFixed(1)}, 时间=${timeScore.toFixed(1)}`);
+        
         return Math.round(totalScore);
+    },
+    
+    // 获取时间评级文本
+    getTimeRating() {
+        if (this.totalTime <= this.referenceCompletionTime.fast * 0.9) {
+            return "极速";
+        } else if (this.totalTime <= this.referenceCompletionTime.fast) {
+            return "卓越";
+        } else if (this.totalTime <= this.referenceCompletionTime.standard) {
+            return "良好";
+        } else if (this.totalTime <= this.referenceCompletionTime.slow) {
+            return "合格";
+        } else if (this.totalTime <= this.referenceCompletionTime.slow * 1.2) {
+            return "较慢";
+        } else {
+            return "缓慢";
+        }
+    },
+    
+    // 获取时间评级颜色
+    getTimeRatingColor() {
+        if (this.totalTime <= this.referenceCompletionTime.fast * 0.9) {
+            return "rgba(0, 255, 150, 0.3)"; // 极速 - 绿色
+        } else if (this.totalTime <= this.referenceCompletionTime.fast) {
+            return "rgba(0, 220, 255, 0.3)"; // 卓越 - 蓝绿色
+        } else if (this.totalTime <= this.referenceCompletionTime.standard) {
+            return "rgba(100, 200, 255, 0.3)"; // 良好 - 浅蓝色
+        } else if (this.totalTime <= this.referenceCompletionTime.slow) {
+            return "rgba(255, 230, 0, 0.3)"; // 合格 - 黄色
+        } else if (this.totalTime <= this.referenceCompletionTime.slow * 1.2) {
+            return "rgba(255, 100, 50, 0.3)"; // 较慢 - 橙色
+        } else {
+            return "rgba(255, 50, 50, 0.3)"; // 缓慢 - 红色
+        }
     },
     
     // 显示评分结果
@@ -355,6 +744,13 @@ const frameRateMonitor = {
                         <div style="opacity: 0.8;">帧率稳定性</div>
                         <div style="font-weight: 500;">${this.stability.toFixed(1)}<span style="opacity: 0.7; font-size: ${fontSizeDetailsSmall}px;">%</span></div>
                     </div>
+                    <div style="margin: ${10 * sizeFactor}px 0; display: flex; justify-content: space-between; text-align: left; font-size: ${fontSizeDetails}px; border-top: 1px solid rgba(100, 200, 255, 0.2); padding-top: ${10 * sizeFactor}px;">
+                        <div style="opacity: 0.8;">完成时间</div>
+                        <div style="font-weight: 500; display: flex; align-items: center;">
+                            ${(this.totalTime/1000).toFixed(1)} <span style="opacity: 0.7; font-size: ${fontSizeDetailsSmall}px; margin-left: 2px;">秒</span>
+                            <span style="margin-left: 8px; font-size: ${fontSizeDetailsSmall}px; padding: 2px 6px; border-radius: 4px; background: ${this.getTimeRatingColor()}; opacity: 0.9;">${this.getTimeRating()}</span>
+                        </div>
+                    </div>
                 </div>
                 
                 <!-- 关闭按钮 -->
@@ -430,6 +826,12 @@ const frameRateMonitor = {
 
 // 动画循环
 function animate() {
+    // 在animate函数开始前添加代码，确保只执行一次
+    if (!window.refreshButtonCreated) {
+        createRefreshButton();
+        window.refreshButtonCreated = true;
+    }
+    
     requestAnimationFrame(animate);
     
     // 更新帧率计数
@@ -495,6 +897,12 @@ renderer.domElement.addEventListener('click', (event) => {
 
 // 修改createEnhancedParticleBurst函数
 function createEnhancedParticleBurst() {
+    // 只有在全屏模式下才允许触发特效
+    if (!isFullscreen()) {
+        showFullscreenWarning();
+        return;
+    }
+    
     createWormholeEffect();
 }
 
@@ -625,6 +1033,18 @@ function updateUIForScreenSize() {
             clickToStartHint.style.right = '10px';
             clickToStartHint.style.left = 'auto';
             clickToStartHint.style.top = '45px';
+        }
+    }
+    
+    // 为刷新按钮添加响应式调整
+    const refreshBtn = document.getElementById('refresh-container');
+    if (refreshBtn) {
+        if (window.innerWidth < 768) {
+            refreshBtn.style.bottom = '10px';
+            refreshBtn.style.right = '10px';
+        } else {
+            refreshBtn.style.bottom = '20px';
+            refreshBtn.style.right = '20px';
         }
     }
 }
@@ -1747,4 +2167,12 @@ function easeInExpo(x) {
 // 缓出函数
 function easeOutExpo(x) {
     return x === 1 ? 1 : 1 - Math.pow(2, -10 * x);
-} 
+}
+
+// 确保在DOM加载完成后创建按钮
+document.addEventListener('DOMContentLoaded', function() {
+    if (!window.refreshButtonCreated) {
+        createRefreshButton();
+        window.refreshButtonCreated = true;
+    }
+}); 
