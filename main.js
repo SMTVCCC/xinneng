@@ -13,6 +13,19 @@ controls.dampingFactor = 0.05;
 // 设置相机位置
 camera.position.z = 3.8;
 
+// 保存初始相机位置供重置使用
+const startZ = camera.position.z;
+const startY = camera.position.y;
+
+// 添加全局ESC键监听器
+let cameraAnimationCompleted = false;
+document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && cameraAnimationCompleted) {
+        resetView();
+        cameraAnimationCompleted = false;
+    }
+});
+
 // 创建地球
 const earthGeometry = new THREE.SphereGeometry(2, 64, 64);
 const earthMaterial = new THREE.MeshPhongMaterial({
@@ -87,10 +100,297 @@ permanentFpsCounter.style.zIndex = '2000';
 permanentFpsCounter.textContent = 'FPS: 0';
 document.body.appendChild(permanentFpsCounter);
 
+// 添加点击开始提示
+const clickToStartHint = document.createElement('div');
+clickToStartHint.id = 'clickToStartHint';
+clickToStartHint.style.position = 'fixed';
+clickToStartHint.style.top = '45px';
+clickToStartHint.style.right = '10px';
+clickToStartHint.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+clickToStartHint.style.color = '#00ffff';
+clickToStartHint.style.padding = '5px 10px';
+clickToStartHint.style.borderRadius = '3px';
+clickToStartHint.style.fontFamily = 'Arial, sans-serif';
+clickToStartHint.style.fontSize = '13px';
+clickToStartHint.style.zIndex = '2000';
+clickToStartHint.style.textAlign = 'center';
+clickToStartHint.style.border = '1px solid rgba(0, 255, 255, 0.3)';
+clickToStartHint.style.boxShadow = '0 0 5px rgba(0, 255, 255, 0.2)';
+clickToStartHint.style.cursor = 'pointer';
+clickToStartHint.innerHTML = '点击一下开始<br><span style="font-size: 10px; opacity: 0.7;">Click to start</span>';
+// 加入点击事件
+clickToStartHint.addEventListener('mouseenter', () => {
+    clickToStartHint.style.backgroundColor = 'rgba(0, 20, 40, 0.7)';
+    clickToStartHint.style.boxShadow = '0 0 8px rgba(0, 255, 255, 0.4)';
+});
+clickToStartHint.addEventListener('mouseleave', () => {
+    clickToStartHint.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+    clickToStartHint.style.boxShadow = '0 0 5px rgba(0, 255, 255, 0.2)';
+});
+clickToStartHint.addEventListener('click', () => {
+    createEnhancedParticleBurst();
+});
+document.body.appendChild(clickToStartHint);
+
 // 全局FPS计算变量
 let globalFpsUpdateTime = performance.now();
 let globalFrameCount = 0;
 let currentFPS = 0;
+
+// 全局虫洞相关变量
+let currentCanvas = null;
+let currentWormhole = null;
+let currentAnimationFrameId = null;
+
+// 添加帧率监控与评分系统
+const frameRateMonitor = {
+    active: false,
+    records: [],
+    startTime: 0,
+    lastRecordTime: 0,
+    recordInterval: 1000, // 每秒记录一次
+    averageFPS: 0,
+    minFPS: 0,
+    maxFPS: 0,
+    stability: 0,
+    weightDistribution: {
+        average: 0.4,  // 平均帧率权重
+        minimum: 0.3,  // 最低帧率权重
+        stability: 0.3 // 稳定性权重
+    },
+    
+    // 开始记录
+    start() {
+        this.active = true;
+        this.records = [];
+        this.startTime = performance.now();
+        this.lastRecordTime = this.startTime;
+        console.log("帧率监控已启动");
+    },
+    
+    // 记录帧率
+    record(currentFPS) {
+        if (!this.active) return;
+        
+        const now = performance.now();
+        if (now - this.lastRecordTime >= this.recordInterval) {
+            this.records.push({
+                time: (now - this.startTime) / 1000, // 秒数
+                fps: currentFPS
+            });
+            this.lastRecordTime = now;
+        }
+    },
+    
+    // 结束记录并分析
+    stop() {
+        if (!this.active || this.records.length === 0) return;
+        
+        this.active = false;
+        
+        // 计算统计数据
+        const fpsValues = this.records.map(r => r.fps);
+        this.averageFPS = fpsValues.reduce((a, b) => a + b, 0) / fpsValues.length;
+        this.minFPS = Math.min(...fpsValues);
+        this.maxFPS = Math.max(...fpsValues);
+        
+        // 计算标准差（衡量稳定性）
+        const variance = fpsValues.reduce((sum, fps) => {
+            return sum + Math.pow(fps - this.averageFPS, 2);
+        }, 0) / fpsValues.length;
+        const stdDeviation = Math.sqrt(variance);
+        
+        // 将标准差转换为稳定性分数（越稳定越接近100）
+        const stabilityPercentage = Math.max(0, 100 - (stdDeviation / this.averageFPS * 100));
+        this.stability = stabilityPercentage;
+        
+        console.log(`帧率统计：平均=${this.averageFPS.toFixed(1)}，最低=${this.minFPS}，最高=${this.maxFPS}，稳定性=${this.stability.toFixed(1)}%`);
+        
+        // 计算整体得分
+        const score = this.calculateScore();
+        
+        // 显示结果
+        setTimeout(() => {
+            this.showResult(score);
+        }, 1000); // 虫洞散去后1秒显示
+    },
+    
+    // 计算性能评分（0-100分）
+    calculateScore() {
+        // 平均帧率得分（越高越好，最高100分）
+        const targetFPS = performanceSettings.maxFPS;
+        const averageScore = Math.min(100, (this.averageFPS / targetFPS) * 100);
+        
+        // 最低帧率得分（最低帧率占目标帧率的百分比）
+        const minScore = Math.min(100, (this.minFPS / targetFPS) * 100);
+        
+        // 稳定性得分（已经是0-100）
+        const stabilityScore = this.stability;
+        
+        // 加权计算总分
+        const totalScore = (
+            averageScore * this.weightDistribution.average +
+            minScore * this.weightDistribution.minimum +
+            stabilityScore * this.weightDistribution.stability
+        );
+        
+        return Math.round(totalScore);
+    },
+    
+    // 显示评分结果
+    showResult(score) {
+        // 创建评分容器
+        const resultContainer = document.createElement('div');
+        resultContainer.style.position = 'fixed';
+        resultContainer.style.top = '50%';
+        resultContainer.style.left = '50%';
+        resultContainer.style.transform = 'translate(-50%, -50%)';
+        resultContainer.style.backgroundColor = 'rgba(0, 0, 15, 0.85)';
+        resultContainer.style.backdropFilter = 'blur(10px)';
+        resultContainer.style.borderRadius = '15px';
+        resultContainer.style.padding = '25px';
+        resultContainer.style.boxShadow = '0 0 30px rgba(0, 150, 255, 0.4), inset 0 0 15px rgba(0, 100, 255, 0.2)';
+        resultContainer.style.zIndex = '3000';
+        resultContainer.style.color = '#fff';
+        resultContainer.style.fontFamily = '"Segoe UI", Arial, sans-serif';
+        resultContainer.style.textAlign = 'center';
+        resultContainer.style.minWidth = '320px';
+        resultContainer.style.maxWidth = '90vw';
+        resultContainer.style.transition = 'all 0.5s ease-out';
+        resultContainer.style.opacity = '0';
+        resultContainer.style.transform = 'translate(-50%, -50%) scale(0.9)';
+        
+        // 根据得分设置边框和发光效果
+        let borderColor, gradeText, gradeColor, gradientColors;
+        if (score >= 90) {
+            borderColor = 'rgba(0, 255, 150, 0.6)';
+            gradeText = 'S';
+            gradeColor = '#00ff96';
+            gradientColors = ['rgba(0, 255, 150, 0.8)', 'rgba(0, 210, 255, 0.6)'];
+        } else if (score >= 80) {
+            borderColor = 'rgba(0, 220, 255, 0.6)';
+            gradeText = 'A';
+            gradeColor = '#00dfff';
+            gradientColors = ['rgba(0, 220, 255, 0.8)', 'rgba(100, 180, 255, 0.6)'];
+        } else if (score >= 70) {
+            borderColor = 'rgba(100, 200, 255, 0.6)';
+            gradeText = 'B';
+            gradeColor = '#64c8ff';
+            gradientColors = ['rgba(100, 200, 255, 0.8)', 'rgba(150, 150, 255, 0.6)'];
+        } else if (score >= 60) {
+            borderColor = 'rgba(255, 230, 0, 0.6)';
+            gradeText = 'C';
+            gradeColor = '#ffe600';
+            gradientColors = ['rgba(255, 230, 0, 0.8)', 'rgba(255, 180, 0, 0.6)'];
+        } else if (score >= 40) {
+            borderColor = 'rgba(255, 50, 50, 0.6)';
+            gradeText = 'D';
+            gradeColor = '#ff3232';
+            gradientColors = ['rgba(255, 50, 50, 0.8)', 'rgba(255, 0, 100, 0.6)'];
+        } else {
+            borderColor = 'rgba(180, 0, 0, 0.6)';
+            gradeText = 'E';
+            gradeColor = '#b00000';
+            gradientColors = ['rgba(180, 0, 0, 0.8)', 'rgba(100, 0, 20, 0.6)'];
+        }
+        
+        resultContainer.style.border = `1px solid ${borderColor}`;
+        
+        // 创建内部内容容器
+        const contentHtml = `
+            <div style="position: relative; overflow: hidden;">
+                <!-- 标题 -->
+                <div style="font-size: 24px; margin-bottom: 30px; font-weight: 300; letter-spacing: 2px; text-transform: uppercase; position: relative;">
+                    <span style="position: relative; z-index: 2;">性能评分</span>
+                    <div style="position: absolute; height: 1px; width: 60%; bottom: -8px; left: 20%; background: linear-gradient(to right, transparent, ${borderColor}, transparent);"></div>
+                </div>
+                
+                <!-- 装饰图形 -->
+                <div style="position: absolute; width: 150px; height: 150px; border-radius: 50%; top: -30px; right: -30px; background: radial-gradient(circle at center, ${gradientColors[0]} 0%, transparent 70%); opacity: 0.15; pointer-events: none;"></div>
+                <div style="position: absolute; width: 100px; height: 100px; border-radius: 50%; bottom: -20px; left: -20px; background: radial-gradient(circle at center, ${gradientColors[1]} 0%, transparent 70%); opacity: 0.1; pointer-events: none;"></div>
+                
+                <!-- 主评分 -->
+                <div style="position: relative; display: flex; align-items: center; justify-content: center; margin: 20px 0 30px;">
+                    <div style="font-size: 100px; font-weight: 700; text-align: center; position: relative; line-height: 1; color: ${gradeColor}; text-shadow: 0 0 15px ${gradeColor}4D;">${gradeText}</div>
+                    <div style="position: absolute; width: 140px; height: 140px; border: 2px solid ${borderColor}; border-radius: 50%; opacity: 0.3;"></div>
+                    <div style="position: absolute; width: 160px; height: 160px; border: 1px solid ${borderColor}; border-radius: 50%; opacity: 0.2;"></div>
+                </div>
+                
+                <!-- 分数显示 -->
+                <div style="font-size: 36px; font-weight: 300; margin: 15px 0 25px; letter-spacing: 1px;">
+                    ${score}<span style="font-size: 20px; opacity: 0.7;">分</span>
+                </div>
+                
+                <!-- 详细数据 -->
+                <div style="background: rgba(0, 30, 60, 0.3); border-radius: 10px; padding: 15px; margin: 5px 0 20px;">
+                    <div style="margin: 10px 0; display: flex; justify-content: space-between; text-align: left; font-size: 14px;">
+                        <div style="opacity: 0.8;">平均帧率</div>
+                        <div style="font-weight: 500;">${this.averageFPS.toFixed(1)} <span style="opacity: 0.7; font-size: 12px;">FPS</span></div>
+                    </div>
+                    <div style="margin: 10px 0; display: flex; justify-content: space-between; text-align: left; font-size: 14px;">
+                        <div style="opacity: 0.8;">最低帧率</div>
+                        <div style="font-weight: 500;">${this.minFPS} <span style="opacity: 0.7; font-size: 12px;">FPS</span></div>
+                    </div>
+                    <div style="margin: 10px 0; display: flex; justify-content: space-between; text-align: left; font-size: 14px;">
+                        <div style="opacity: 0.8;">帧率稳定性</div>
+                        <div style="font-weight: 500;">${this.stability.toFixed(1)}<span style="opacity: 0.7; font-size: 12px;">%</span></div>
+                    </div>
+                </div>
+                
+                <!-- 关闭按钮 -->
+                <button id="closeResultBtn" style="margin-top: 10px; padding: 10px 25px; background: linear-gradient(to right, ${gradientColors[0]}, ${gradientColors[1]}); border: none; border-radius: 30px; color: #fff; cursor: pointer; font-weight: 500; letter-spacing: 1px; position: relative; overflow: hidden; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);">
+                    <span style="position: relative; z-index: 2;">关闭</span>
+                    <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(to right, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.2)); opacity: 0; transition: opacity 0.3s;" id="buttonHoverEffect"></div>
+                </button>
+            </div>
+        `;
+        
+        resultContainer.innerHTML = contentHtml;
+        document.body.appendChild(resultContainer);
+        
+        // 添加按钮悬停效果
+        const buttonHoverEffect = document.getElementById('buttonHoverEffect');
+        const closeButton = document.getElementById('closeResultBtn');
+        
+        closeButton.addEventListener('mouseenter', () => {
+            if (buttonHoverEffect) buttonHoverEffect.style.opacity = '1';
+        });
+        
+        closeButton.addEventListener('mouseleave', () => {
+            if (buttonHoverEffect) buttonHoverEffect.style.opacity = '0';
+        });
+        
+        // 添加关闭按钮事件
+        closeButton.addEventListener('click', () => {
+            resultContainer.style.opacity = '0';
+            resultContainer.style.transform = 'translate(-50%, -50%) scale(0.9)';
+            setTimeout(() => {
+                if (document.body.contains(resultContainer)) {
+                    resultContainer.remove();
+                }
+            }, 500);
+        });
+        
+        // 淡入动画
+        setTimeout(() => {
+            resultContainer.style.opacity = '1';
+            resultContainer.style.transform = 'translate(-50%, -50%) scale(1)';
+        }, 50);
+        
+        // 10秒后自动关闭
+        setTimeout(() => {
+            if (document.body.contains(resultContainer)) {
+                resultContainer.style.opacity = '0';
+                resultContainer.style.transform = 'translate(-50%, -50%) scale(0.9)';
+                setTimeout(() => {
+                    if (document.body.contains(resultContainer)) {
+                        resultContainer.remove();
+                    }
+                }, 500);
+            }
+        }, 10000);
+    }
+};
 
 // 动画循环
 function animate() {
@@ -163,23 +463,33 @@ const isLowEndDevice = () => {
     return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 };
 
+// 检测是否为苹果电脑
+const isMacOS = () => {
+    return /Mac OS/i.test(navigator.userAgent) && !/iPhone|iPad|iPod/i.test(navigator.userAgent);
+};
+
 // 性能自适应设置
 const performanceSettings = {
-    particleCount: isLowEndDevice() ? 180 : 350,  // 增加粒子数量
-    backgroundParticleCount: isLowEndDevice() ? 60 : 150,  // 增加背景粒子
+    particleCount: isLowEndDevice() ? 200 : 400,  // 增加粒子数量
+    backgroundParticleCount: isLowEndDevice() ? 80 : 180,  // 增加背景粒子
     skipFrames: isLowEndDevice() ? 2 : 1,
     trailEnabled: true, // 始终启用轨迹
     glowEnabled: true,  // 始终启用发光
-    trailLength: isLowEndDevice() ? 3 : 5,  // 增加轨迹长度
+    trailLength: isLowEndDevice() ? 4 : 7,  // 增加轨迹长度
     backgroundDrawInterval: isLowEndDevice() ? 2 : 1,  // 减少间隔，更密集
     useScreenComposite: true,  // 始终使用更亮的混合模式
     renderStep: 1,  // 渲染所有粒子
     showFPS: true,  // 显示帧率
-    maxFPS: 120  // 设置最大帧率上限
+    maxFPS: isMacOS() ? 60 : 120,  // 针对苹果电脑设置最大帧率为60，其他为120
+    particleSizeVariance: 0.8, // 粒子大小变化
+    colorHarmony: true // 启用颜色协调
 };
 
 // 创建虫洞效果
 function createWormholeEffect() {
+    // 启动帧率监控
+    frameRateMonitor.start();
+    
     const centerX = window.innerWidth / 2;
     const centerY = window.innerHeight / 2;
     
@@ -190,13 +500,17 @@ function createWormholeEffect() {
     wormhole.style.top = '50%';
     wormhole.style.left = '50%';
     wormhole.style.transform = 'translate(-50%, -50%)';
-    wormhole.style.width = '300px'; // 增加虫洞尺寸
+    wormhole.style.width = '300px';
     wormhole.style.height = '300px';
     wormhole.style.borderRadius = '50%';
-    wormhole.style.background = 'radial-gradient(circle, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0) 70%)';
-    wormhole.style.boxShadow = '0 0 80px rgba(150,50,255,0.8)'; // 增强外发光
+    // 使用更平滑的径向渐变
+    wormhole.style.background = 'radial-gradient(circle, rgba(0,0,0,0.98) 0%, rgba(0,0,0,0.95) 30%, rgba(0,0,0,0.9) 40%, rgba(0,0,0,0.4) 60%, rgba(0,0,0,0) 75%)';
+    wormhole.style.boxShadow = '0 0 80px rgba(150,50,255,0.8), inset 0 0 30px rgba(180,100,255,0.5)'; // 双重发光效果
     wormhole.style.zIndex = '1000';
     document.body.appendChild(wormhole);
+    
+    // 保存到全局变量
+    currentWormhole = wormhole;
 
     // 获取设备像素比并自适应降低分辨率
     const devicePixelRatio = Math.min(window.devicePixelRatio, 2);
@@ -214,21 +528,39 @@ function createWormholeEffect() {
     canvas.style.zIndex = '1001';
     document.body.appendChild(canvas);
     
+    // 保存到全局变量
+    currentCanvas = canvas;
+    
     const ctx = canvas.getContext('2d', { alpha: true });
-    ctx.globalCompositeOperation = performanceSettings.useScreenComposite ? 'screen' : 'lighter';
+    // 使用更好的混合模式提升视觉效果
+    ctx.globalCompositeOperation = 'screen';
     
     // 设置更大的半径和粒子效果
-    let radius = 100; // 增加虫洞半径
-    let ringThickness = 25; // 增加环厚度
+    let radius = 100;
+    let ringThickness = 30; // 增加环厚度
     
-    // 使用更明亮、更饱和的色彩
-    const colors = [
-        'rgba(180, 50, 255, 0.95)', // 亮紫色
-        'rgba(210, 100, 255, 0.95)', // 淡紫色
-        'rgba(140, 0, 255, 0.95)',  // 深紫色
-        'rgba(100, 180, 255, 0.95)',  // 亮蓝色
-        'rgba(255, 100, 230, 0.95)'   // 粉紫色
+    // 使用更协调的颜色组合
+    const baseColors = [
+        { r: 180, g: 50, b: 255 },   // 亮紫色
+        { r: 210, g: 100, b: 255 },  // 淡紫色
+        { r: 140, g: 0, b: 255 },    // 深紫色
+        { r: 100, g: 180, b: 255 },  // 亮蓝色
+        { r: 255, g: 100, b: 230 }   // 粉紫色
     ];
+    
+    // 生成协调的颜色变体
+    const colors = [];
+    for (let i = 0; i < baseColors.length; i++) {
+        const base = baseColors[i];
+        // 添加原始颜色
+        colors.push(`rgba(${base.r}, ${base.g}, ${base.b}, 0.95)`);
+        // 添加亮变体
+        if (performanceSettings.colorHarmony) {
+            colors.push(`rgba(${Math.min(base.r + 40, 255)}, ${Math.min(base.g + 40, 255)}, ${Math.min(base.b + 40, 255)}, 0.9)`);
+            // 添加暗变体
+            colors.push(`rgba(${Math.max(base.r - 40, 0)}, ${Math.max(base.g - 40, 0)}, ${Math.max(base.b - 40, 0)}, 0.95)`);
+        }
+    }
     
     // 预计算常量
     const TWO_PI = Math.PI * 2;
@@ -237,19 +569,38 @@ function createWormholeEffect() {
     // 批量创建粒子以减少GC
     for (let i = 0; i < performanceSettings.particleCount; i++) {
         const angle = (i / performanceSettings.particleCount) * TWO_PI;
-        const size = Math.random() * 1.5 + 1.2; // 大幅增加粒子尺寸
+        // 使用协调的粒子大小分布
+        const sizeVariance = performanceSettings.particleSizeVariance;
+        const sizeBaseFactor = Math.random() < 0.7 ? 1 : (Math.random() < 0.5 ? 1.5 : 0.8); // 70%标准，15%大，15%小
+        const size = (Math.random() * sizeVariance + 1.2) * sizeBaseFactor;
         
         // 多维度起点分布 - 实现从各个方向汇集
         let startX, startY;
-        const distributionType = Math.floor(Math.random() * 4); // 0-3 四种分布类型
+        // 使用加权分布类型，更自然的分布
+        let distributionWeights = [0.3, 0.25, 0.25, 0.2]; // 圆形，网格，螺旋，边框
+        let weightSum = distributionWeights.reduce((a, b) => a + b, 0);
+        let randomValue = Math.random() * weightSum;
+        let distributionType = 0;
+        let accumulatedWeight = 0;
+        
+        for (let j = 0; j < distributionWeights.length; j++) {
+            accumulatedWeight += distributionWeights[j];
+            if (randomValue <= accumulatedWeight) {
+                distributionType = j;
+                break;
+            }
+        }
+        
         const edgeDistance = Math.max(window.innerWidth, window.innerHeight) * 0.8;
         
         // 为粒子分配不同的起始位置分布
         switch(distributionType) {
             case 0: // 圆形分布 - 从屏幕边缘
                 const randomAngle = Math.random() * TWO_PI;
-                startX = centerX + Math.cos(randomAngle) * edgeDistance;
-                startY = centerY + Math.sin(randomAngle) * edgeDistance;
+                // 使用更自然的距离分布
+                const distVariance = Math.pow(Math.random(), 0.7) * 0.3 + 0.7; // 非线性分布，更多粒子聚集在远处
+                startX = centerX + Math.cos(randomAngle) * edgeDistance * distVariance;
+                startY = centerY + Math.sin(randomAngle) * edgeDistance * distVariance;
                 break;
             case 1: // 网格分布 - 从整个屏幕
                 startX = Math.random() * canvas.width;
@@ -274,81 +625,143 @@ function createWormholeEffect() {
                 break;
         }
         
-        // 较简单的目标位置计算
-        const targetRadius = radius - ringThickness/2 + Math.random() * ringThickness;
+        // 较简单的目标位置计算，但使用不规则分布创造更自然的效果
+        const ringVariance = Math.random() * 0.6 + 0.7; // 0.7-1.3倍的变化
+        const targetRadius = (radius - ringThickness/2 + Math.random() * ringThickness) * ringVariance;
         const targetX = centerX + Math.cos(angle) * targetRadius;
         const targetY = centerY + Math.sin(angle) * targetRadius;
 
         // 计算出现延迟和运动路径
-        const delay = Math.random() * 1500; // 增加延迟变化
-        const pathComplexity = Math.random() < 0.7 ? 0 : Math.floor(Math.random() * 3) + 1; // 70%简单路径，30%复杂路径
+        // 使用更自然的延迟分布
+        const delayFactor = Math.pow(Math.random(), 0.8); // 非线性分布
+        const delay = delayFactor * 1500;
+        
+        // 使粒子路径更加多样化
+        const pathVariance = Math.random();
+        let pathComplexity = 0;
+        if (pathVariance < 0.6) { // 60%简单路径
+            pathComplexity = 0;
+        } else if (pathVariance < 0.85) { // 25%中等复杂
+            pathComplexity = 1;
+        } else if (pathVariance < 0.95) { // 10%复杂
+            pathComplexity = 2;
+        } else { // 5%非常复杂
+            pathComplexity = 3;
+        }
         
         // 为复杂路径生成控制点
         const controlPoints = [];
         if (pathComplexity > 0) {
             for (let j = 0; j < pathComplexity; j++) {
-                // 在起点和终点之间创建控制点
+                // 在起点和终点之间创建控制点，但偏移量更加多样化
                 const ratio = (j + 1) / (pathComplexity + 1);
-                const cpX = startX + (targetX - startX) * ratio + (Math.random() * 200 - 100);
-                const cpY = startY + (targetY - startY) * ratio + (Math.random() * 200 - 100);
+                // 使用对数分布创建更自然的弯曲
+                const offsetRange = 250 - 150 * Math.log10(j+2);
+                const offsetX = (Math.random() * offsetRange * 2 - offsetRange) * (1 - ratio * 0.5);
+                const offsetY = (Math.random() * offsetRange * 2 - offsetRange) * (1 - ratio * 0.5);
+                
+                const cpX = startX + (targetX - startX) * ratio + offsetX;
+                const cpY = startY + (targetY - startY) * ratio + offsetY;
                 controlPoints.push({ x: cpX, y: cpY });
             }
         }
         
+        // 为粒子分配动态的颜色索引
+        const colorIndex = i % colors.length;
+        
         wormholeParticles[i] = {
             angle: angle,
             radius: targetRadius,
-            speed: Math.random() * 0.015 + 0.012, // 增加旋转速度
+            speed: Math.random() * 0.015 + 0.012, // 随机速度
             size: size,
             targetX: targetX,
             targetY: targetY,
             x: startX,
             y: startY,
             z: Math.random() * 0.3 - 0.15, // 增加深度变化
-            color: colors[i % colors.length],
+            color: colors[colorIndex],
+            baseColor: colors[colorIndex], // 保存基础颜色
             trail: [],  // 所有粒子都有轨迹
             convergenceSpeed: 0.01 + Math.random() * 0.01, // 不同粒子不同速度
             startTime: performance.now() + delay,
             started: false,
-            alpha: 0.95,  // 最大不透明度
+            alpha: 0, // 开始时透明
+            targetAlpha: 0.9 + Math.random() * 0.05, // 目标透明度略有变化
             baseSize: size, // 保存原始大小用于动画
             controlPoints: controlPoints, // 路径控制点
             pathProgress: 0, // 路径进度
-            distributionType: distributionType // 记录分布类型以便视觉差异
+            distributionType: distributionType, // 记录分布类型以便视觉差异
+            pulseFactor: Math.random() * 0.5 + 0.75, // 每个粒子的脉动因子不同
+            pulseSpeed: Math.random() * 0.5 + 0.75, // 每个粒子的脉动速度不同
+            lifespan: Math.random() * 0.4 + 0.8 // 粒子寿命因子(0.8-1.2)，用于爆炸阶段
         };
     }
     
-    // 添加背景粒子，显著减少数量
+    // 添加背景粒子，更协调的分布
     const backgroundParticles = new Array(performanceSettings.backgroundParticleCount);
     
     for (let i = 0; i < performanceSettings.backgroundParticleCount; i++) {
-        const angle = Math.random() * TWO_PI;
-        const distance = Math.random() * window.innerWidth * 0.5; // 减小分布范围
+        // 创建更加均匀分布的背景粒子
+        let angle, distance;
+        if (i % 3 === 0) { // 33%集中在中心区域
+            angle = Math.random() * TWO_PI;
+            distance = Math.random() * window.innerWidth * 0.25;
+        } else if (i % 3 === 1) { // 33%分布在中间区域
+            angle = Math.random() * TWO_PI;
+            distance = window.innerWidth * 0.25 + Math.random() * window.innerWidth * 0.15;
+        } else { // 33%分布在外围
+            angle = Math.random() * TWO_PI;
+            distance = window.innerWidth * 0.4 + Math.random() * window.innerWidth * 0.1;
+        }
+        
         const x = centerX + Math.cos(angle) * distance;
         const y = centerY + Math.sin(angle) * distance;
-        const size = Math.random() * 0.8 + 0.3; // 减小尺寸
+        
+        // 使用对数分布创建更和谐的大小变化
+        const sizeVariance = Math.log(Math.random() * 8 + 2) / Math.log(10);
+        const size = sizeVariance * 0.5 + 0.3;
+        
+        // 使用协调的颜色
+        const colorIndex = i % colors.length;
         
         backgroundParticles[i] = {
             x: x,
             y: y,
             size: size * 1.5, // 增大背景粒子
-            color: colors[i % colors.length],
+            color: colors[colorIndex],
             alpha: Math.random() * 0.4 + 0.25, // 大幅增加不透明度
-            speed: Math.random() * 0.15 + 0.05 // 增加速度
+            speed: Math.random() * 0.15 + 0.05, // 增加速度
+            angle: Math.random() * TWO_PI, // 随机角度
+            distance: distance, // 记录距离用于脉动效果
+            pulse: Math.random() * 0.3 + 0.85 // 脉动系数
         };
     }
     
     // 优化的动画函数
     let formationComplete = false;
-    let rotationSpeed = 0.008; // 增加初始旋转速度
-    let maxRotationSpeed = 0.15; // 增加最大旋转速度
+    let rotationSpeed = 0.008; // 初始旋转速度
+    let maxRotationSpeed = 0.15; // 最大旋转速度
     let currentRotation = 0;
     let shrinkStarted = false;
     let explosionStarted = false;
     let lastTime = performance.now();
     let accelerationStartTime = 0;
-    let accelerationFactor = 0.03; // 增加加速因子
-    
+    let accelerationFactor = 0.015; // 降低加速因子，使旋转加速更缓慢
+    let rotationPhase = 0; // 旋转阶段，用于控制旋转节奏
+    const rotationTimings = {
+        initialDuration: 5, // 初始旋转阶段持续时间(秒)，增加1秒
+        accelerationDuration: 6, // 加速阶段持续时间(秒)
+        pulsingDuration: 6, // 脉动阶段持续时间(秒)，增加1秒
+        finalDuration: 3 // 最终加速阶段持续时间(秒)
+    };
+    const totalRotationDuration = rotationTimings.initialDuration + rotationTimings.accelerationDuration + 
+                                  rotationTimings.pulsingDuration + rotationTimings.finalDuration;
+
+    // 脉动效果参数
+    let pulseIntensity = 0; // 脉动强度
+    let pulseFrequency = 0.5; // 脉动频率
+    let sizeMultiplier = 1; // 整体大小倍数
+
     // 闪烁效果
     let flashOpacity = 0;
     let isFlashing = false;
@@ -506,12 +919,35 @@ function createWormholeEffect() {
                 p.size *= (1 - 0.01 * deltaTime);
             }
         } else {
-            // 旋转阶段
+            // 旋转阶段 - 增强粒子大小脉动效果
             p.angle += (p.speed * rotationSpeed * 12) * deltaTime;
             
-            // 粒子大小随旋转速度脉动
-            const sizePulse = Math.sin(currentTime / 200) * 0.3 + 1;
-            p.size = p.baseSize * sizePulse * (1 + rotationSpeed * 5);
+            // 根据当前旋转阶段调整粒子大小
+            let timeSinceFormation = (currentTime - accelerationStartTime) / 1000;
+            let sizePulse = 1;
+            
+            if (timeSinceFormation > rotationTimings.initialDuration + rotationTimings.accelerationDuration) {
+                // 脉动阶段 - 粒子大小随时间变化更明显
+                const pulseTime = timeSinceFormation - (rotationTimings.initialDuration + rotationTimings.accelerationDuration);
+                const pulsePhase = Math.min(pulseTime / rotationTimings.pulsingDuration, 1); // 0到1
+                
+                // 增加脉动频率和强度
+                pulseFrequency = 0.5 + pulsePhase * 1.5; // 0.5到2
+                pulseIntensity = 0.2 + pulsePhase * 0.5; // 0.2到0.7
+                
+                // 计算当前脉动值
+                sizePulse = 1 + Math.sin(currentTime / (1000 / pulseFrequency) + p.pulseFactor * 10) * pulseIntensity;
+                
+                // 根据旋转速度整体增大粒子
+                sizeMultiplier = 1 + (rotationSpeed / maxRotationSpeed) * 1.5;
+            } else {
+                // 初始和加速阶段 - 随旋转速度增加而轻微脉动
+                sizePulse = Math.sin(currentTime / 200) * 0.2 + 1;
+                sizeMultiplier = 1 + (rotationSpeed / maxRotationSpeed) * 0.5;
+            }
+            
+            // 应用最终大小
+            p.size = p.baseSize * sizePulse * sizeMultiplier;
             
             // 收缩虫洞
             if (shrinkStarted) {
@@ -573,6 +1009,9 @@ function createWormholeEffect() {
         const deltaTime = Math.min((currentTime - lastTime) / 16.67, 2);
         lastTime = currentTime;
         
+        // 记录当前帧率
+        frameRateMonitor.record(currentFPS);
+        
         // 清除画布 - 使用更高效的清除方式
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         
@@ -597,6 +1036,10 @@ function createWormholeEffect() {
                 if (canvas && canvas.parentNode) canvas.remove();
                 if (wormhole && wormhole.parentNode) wormhole.remove();
                 if (animationFrameId) cancelAnimationFrame(animationFrameId);
+                
+                // 停止帧率监控并显示结果
+                frameRateMonitor.stop();
+                
                 return;
             }
         }
@@ -607,126 +1050,213 @@ function createWormholeEffect() {
         for (let i = 0; i < backgroundParticles.length; i += bgDrawInterval) {
             const p = backgroundParticles[i];
             
-            // 简化的移动逻辑
+            // 简化的移动逻辑，但添加更自然的移动模式
             if (formationComplete && !explosionStarted) {
                 const dx = centerX - p.x;
                 const dy = centerY - p.y;
                 const dist = Math.sqrt(dx * dx + dy * dy);
-                if (dist > 50) { // 减小吸引范围
-                    p.x += (dx / dist) * p.speed * deltaTime;
-                    p.y += (dy / dist) * p.speed * deltaTime;
+                
+                // 添加缓慢的螺旋/脉动效果
+                const spiralFactor = 0.05;
+                p.angle += 0.002 * deltaTime * (1.5 - dist / (window.innerWidth * 0.5));
+                
+                // 使用更自然的吸引和排斥力
+                if (dist > 60) { // 外围粒子向内移动
+                    // 使用非线性吸引力
+                    const attractFactor = Math.min(1, 150 / dist) * p.speed * deltaTime;
+                    p.x += (dx / dist) * attractFactor;
+                    p.y += (dy / dist) * attractFactor;
+                    
+                    // 添加轻微的切向运动形成漩涡
+                    p.x += Math.cos(p.angle) * spiralFactor * deltaTime;
+                    p.y += Math.sin(p.angle) * spiralFactor * deltaTime;
+                } else if (dist < 40) { // 靠近中心的粒子稍微排斥
+                    p.x -= (dx / dist) * p.speed * 0.2 * deltaTime;
+                    p.y -= (dy / dist) * p.speed * 0.2 * deltaTime;
                 }
+                
+                // 添加呼吸/脉动效果，使用全局脉动参数
+                const timeSinceFormation = (currentTime - accelerationStartTime) / 1000;
+                if (timeSinceFormation > rotationTimings.initialDuration + rotationTimings.accelerationDuration) {
+                    // 同步脉动
+                    const pulsingFactor = 1 + Math.sin(currentTime / (1000 / pulseFrequency) + p.pulse * 5) * pulseIntensity * 0.5;
+                    p.size = (Math.sin(currentTime / 1000 * p.pulse) * 0.2 + 1) * p.pulse * 1.5 * pulsingFactor;
+                } else {
+                    // 正常呼吸效果
+                    p.size = (Math.sin(currentTime / 1000 * p.pulse) * 0.2 + 1) * p.pulse * 1.5;
+                }
+                
+                p.alpha = (Math.sin(currentTime / 1200 * p.pulse) * 0.1 + 0.9) * (p.alpha);
             } else if (explosionStarted) {
-                // 简化的爆炸效果
+                // 增强的爆炸效果
                 const dx = p.x - centerX;
                 const dy = p.y - centerY;
                 const dist = Math.sqrt(dx * dx + dy * dy);
-                const factor = Math.min(explosionProgress * 0.3, 0.2);
                 
-                if (dist < shockwaveRadius) {
-                    p.x += (dx / Math.max(dist, 1)) * factor * 5 * deltaTime;
-                    p.y += (dy / Math.max(dist, 1)) * factor * 5 * deltaTime;
+                // 使用动态的爆炸因子
+                let explosionPushFactor;
+                
+                if (explosionProgress < 0.3) {
+                    // 初始阶段 - 粒子稍微向内聚集
+                    explosionPushFactor = -0.1 * deltaTime;
+                    p.size *= (1 + 0.05 * deltaTime);
+                    p.alpha *= (1 + 0.05 * deltaTime);
+                } else {
+                    // 爆发阶段 - 粒子向外散开
+                    const progress = (explosionProgress - 0.3) / 0.7; // 0-1
+                    const factor = Math.min(0.5, progress * 0.5);
+                    explosionPushFactor = factor * 5 * deltaTime;
+                    
+                    // 产生闪烁效果
+                    if (Math.random() < explosionProgress * 0.1) {
+                        p.alpha = Math.min(1, p.alpha * 1.5);
+                    } else {
+                        p.alpha *= (1 - 0.02 * deltaTime * explosionProgress);
+                    }
+                }
+                
+                if (dist < shockwaveRadius * 1.2) {
+                    p.x += (dx / Math.max(dist, 1)) * explosionPushFactor * (shockwaveRadius / Math.max(dist, 1));
+                    p.y += (dy / Math.max(dist, 1)) * explosionPushFactor * (shockwaveRadius / Math.max(dist, 1));
                 }
             }
             
-            // 简化的粒子绘制
+            // 改进的粒子绘制，添加发光效果
             ctx.beginPath();
             ctx.arc(p.x, p.y, p.size, 0, TWO_PI);
-            const alphaIndex = p.color.lastIndexOf(',') + 1;
-            const colorBase = p.color.substring(0, alphaIndex);
-            ctx.fillStyle = `${colorBase}${p.alpha})`;
+            
+            // 提取颜色部分并插入新的透明度
+            let color = p.color;
+            if (typeof color === 'string') {
+                const alphaIndex = color.lastIndexOf(',') + 1;
+                if (alphaIndex > 0) {
+                    const colorBase = color.substring(0, alphaIndex);
+                    ctx.fillStyle = `${colorBase}${p.alpha})`;
+                } else {
+                    ctx.fillStyle = color;
+                }
+            } else {
+                ctx.fillStyle = `rgba(150, 100, 255, ${p.alpha})`;
+            }
+            
             ctx.fill();
+            
+            // 为部分大的粒子添加发光效果
+            if (p.size > 1 && performanceSettings.glowEnabled) {
+                ctx.shadowBlur = p.size * 3;
+                ctx.shadowColor = ctx.fillStyle;
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            }
         }
         
         // 绘制闪光效果
         if (isFlashing) {
-            // 使用径向渐变创建更引人注目的闪光效果
+            // 使用多层径向渐变创建更复杂的闪光效果
             const flashGradient = ctx.createRadialGradient(
                 centerX, centerY, 0,
                 centerX, centerY, canvas.width / 2
             );
+            
+            // 使用更和谐的颜色过渡
             flashGradient.addColorStop(0, `rgba(255, 255, 255, ${flashOpacity * 1.2})`);
+            flashGradient.addColorStop(0.1, `rgba(230, 200, 255, ${flashOpacity * 1.1})`);
             flashGradient.addColorStop(0.2, `rgba(200, 150, 255, ${flashOpacity})`);
-            flashGradient.addColorStop(0.5, `rgba(180, 70, 255, ${flashOpacity * 0.8})`);
-            flashGradient.addColorStop(1, `rgba(100, 0, 180, 0)`);
+            flashGradient.addColorStop(0.4, `rgba(180, 70, 255, ${flashOpacity * 0.8})`);
+            flashGradient.addColorStop(0.7, `rgba(120, 40, 180, ${flashOpacity * 0.4})`);
+            flashGradient.addColorStop(1, `rgba(80, 0, 120, 0)`);
             
             ctx.fillStyle = flashGradient;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
-            flashOpacity -= 0.02 * deltaTime; // 进一步减慢闪光消失速度
+            
+            // 使用非线性衰减使闪光效果更自然
+            const decayFactor = 0.02 * deltaTime * (1 + flashOpacity * 0.5);
+            flashOpacity -= decayFactor;
         }
         
-        // 绘制更明显的冲击波
+        // 增强的冲击波
         if (explosionStarted && shockwaveRadius > 0) {
-            const intensity = (1 - explosionProgress) * shockwaveIntensity; // 提高冲击波强度
+            const intensity = (1 - explosionProgress) * shockwaveIntensity;
             ctx.globalAlpha = intensity;
             
-            // 主冲击波
-            ctx.beginPath();
-            ctx.arc(centerX, centerY, shockwaveRadius, 0, TWO_PI);
-            ctx.strokeStyle = 'rgba(200, 120, 255, 0.9)'; // 更亮的颜色
-            ctx.lineWidth = 25 * (1 - explosionProgress); // 增加线宽
-            ctx.stroke();
-            
-            // 第二道冲击波
-            ctx.beginPath();
-            ctx.arc(centerX, centerY, shockwaveRadius * 0.8, 0, TWO_PI);
-            ctx.strokeStyle = 'rgba(160, 80, 255, 0.85)';
-            ctx.lineWidth = 18 * (1 - explosionProgress);
-            ctx.stroke();
-            
-            // 第三道冲击波（内环）
-            ctx.beginPath();
-            ctx.arc(centerX, centerY, shockwaveRadius * 0.6, 0, TWO_PI);
-            ctx.strokeStyle = 'rgba(255, 180, 255, 0.8)';
-            ctx.lineWidth = 12 * (1 - explosionProgress);
-            ctx.stroke();
-            
-            // 添加第四道白色内环冲击波
-            ctx.beginPath();
-            ctx.arc(centerX, centerY, shockwaveRadius * 0.4, 0, TWO_PI);
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
-            ctx.lineWidth = 8 * (1 - explosionProgress);
-            ctx.stroke();
+            // 创建多层冲击波，使用比例因子创建更自然的分布
+            const waveCount = 4;
+            for (let i = 0; i < waveCount; i++) {
+                const ratio = 1 - (i / waveCount * 0.6); // 0.4-1.0
+                const waveOpacity = (1 - (i / waveCount) * 0.3) * 0.9; // 0.7-0.9
+                
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, shockwaveRadius * ratio, 0, TWO_PI);
+                
+                // 使用比例来调整颜色
+                let strokeColor;
+                if (i === 0) {
+                    strokeColor = `rgba(200, 120, 255, ${waveOpacity})`;
+                    ctx.lineWidth = 25 * (1 - explosionProgress);
+                } else if (i === 1) {
+                    strokeColor = `rgba(160, 80, 255, ${waveOpacity * 0.95})`;
+                    ctx.lineWidth = 18 * (1 - explosionProgress) * 0.9; 
+                } else if (i === 2) {
+                    strokeColor = `rgba(255, 180, 255, ${waveOpacity * 0.9})`;
+                    ctx.lineWidth = 12 * (1 - explosionProgress) * 0.8;
+                } else {
+                    strokeColor = `rgba(255, 255, 255, ${waveOpacity * 0.85})`;
+                    ctx.lineWidth = 8 * (1 - explosionProgress) * 0.7;
+                }
+                
+                ctx.strokeStyle = strokeColor;
+                ctx.stroke();
+            }
             
             ctx.globalAlpha = 1;
             
-            // 更新冲击波半径，加快传播速度
-            shockwaveRadius += 500 * deltaTime * (1 - explosionProgress * 0.3);
+            // 更新冲击波半径，使用非线性扩散以创建更自然的效果
+            const propagationFactor = 500 * deltaTime * (1 - explosionProgress * 0.3);
+            shockwaveRadius += propagationFactor * (1 + explosionProgress * 0.2); // 加速扩散
             
-            // 添加爆炸粒子效果
-            if (explosionProgress < 0.4 && frameCounter % 2 === 0) {
-                const particleCount = 5;
+            // 添加更丰富的爆炸粒子效果
+            if (explosionProgress < 0.6 && frameCounter % 2 === 0) {
+                // 根据爆炸进度调整粒子数量
+                const particleMultiplier = explosionProgress < 0.3 ? 1 : (1 - (explosionProgress - 0.3) / 0.3);
+                const particleCount = Math.floor(5 * particleMultiplier);
+                
                 for (let i = 0; i < particleCount; i++) {
                     const angle = Math.random() * TWO_PI;
-                    const distance = shockwaveRadius * (0.2 + Math.random() * 0.7);
+                    // 创建集中在冲击波前沿的粒子
+                    const distanceFactor = Math.random() * 0.2 + 0.9; // 0.9-1.1
+                    const distance = shockwaveRadius * distanceFactor;
                     const x = centerX + Math.cos(angle) * distance;
                     const y = centerY + Math.sin(angle) * distance;
                     
+                    // 对数分布的粒子大小
+                    const sizeBase = Math.log(Math.random() * 10 + 2) / Math.log(10) * 6;
+                    const size = sizeBase * (1 - explosionProgress * 0.5);
+                    
+                    // 绘制圆形粒子
                     ctx.beginPath();
-                    const size = 2 + Math.random() * 6;
                     ctx.arc(x, y, size, 0, TWO_PI);
                     
-                    // 随机选择明亮的颜色
-                    const colorChoice = Math.floor(Math.random() * 3);
+                    // 使用协调的颜色分布
                     let particleColor;
-                    switch(colorChoice) {
-                        case 0:
-                            particleColor = `rgba(255, 255, 255, ${0.9 * (1 - explosionProgress * 2)})`;
-                            break;
-                        case 1:
-                            particleColor = `rgba(180, 100, 255, ${0.8 * (1 - explosionProgress * 2)})`;
-                            break;
-                        case 2:
-                            particleColor = `rgba(100, 200, 255, ${0.8 * (1 - explosionProgress * 2)})`;
-                            break;
+                    const colorChoice = Math.random();
+                    
+                    if (colorChoice < 0.3) { // 30% 白色
+                        particleColor = `rgba(255, 255, 255, ${0.9 * (1 - explosionProgress * 1.5)})`;
+                    } else if (colorChoice < 0.6) { // 30% 紫色
+                        particleColor = `rgba(180, 100, 255, ${0.85 * (1 - explosionProgress * 1.5)})`;
+                    } else if (colorChoice < 0.85) { // 25% 蓝色
+                        particleColor = `rgba(100, 200, 255, ${0.8 * (1 - explosionProgress * 1.5)})`;
+                    } else { // 15% 亮紫色
+                        particleColor = `rgba(220, 120, 255, ${0.9 * (1 - explosionProgress * 1.5)})`;
                     }
                     
                     ctx.fillStyle = particleColor;
                     ctx.fill();
                     
-                    // 添加发光效果
-                    if (Math.random() > 0.5) {
-                        ctx.shadowBlur = size * 3;
+                    // 增强的发光效果
+                    if (Math.random() > 0.3) { // 70%的粒子有发光效果
+                        const glowSize = Math.random() * 2 + 2;
+                        ctx.shadowBlur = size * glowSize;
                         ctx.shadowColor = particleColor;
                         ctx.fill();
                         ctx.shadowBlur = 0;
@@ -736,38 +1266,76 @@ function createWormholeEffect() {
         }
         
         if (formationComplete && !explosionStarted) {
-            // 加速旋转，使用简化的加速函数
+            // 加速旋转，但使用更复杂的节奏控制
             const timeSinceFormation = (currentTime - accelerationStartTime) / 1000;
-            rotationSpeed = Math.min(0.008 + (timeSinceFormation * accelerationFactor), maxRotationSpeed);
             
-            // 同步地球旋转速度，随着虫洞旋转加速而加速
-            const earthSpeedFactor = Math.min(1 + timeSinceFormation * 2, 6); // 最多加速到6倍
-            earthCurrentRotationSpeed = earthBaseRotationSpeed * earthSpeedFactor;
-            
-            // 修改爆炸开始时的代码
-            if (timeSinceFormation > 2 && !shrinkStarted) {
-                shrinkStarted = true;
+            if (timeSinceFormation <= rotationTimings.initialDuration) {
+                // 阶段1: 初始旋转 - 保持缓慢匀速旋转
+                rotationSpeed = 0.008 + (timeSinceFormation / rotationTimings.initialDuration) * 0.012; // 从0.008缓慢增加到0.02
+                rotationPhase = 0;
+            } 
+            else if (timeSinceFormation <= rotationTimings.initialDuration + rotationTimings.accelerationDuration) {
+                // 阶段2: 加速旋转
+                const accelerationTime = timeSinceFormation - rotationTimings.initialDuration;
+                const accelerationProgress = accelerationTime / rotationTimings.accelerationDuration;
+                rotationSpeed = 0.02 + (Math.pow(accelerationProgress, 1.5) * 0.06); // 非线性加速到0.08
+                rotationPhase = 1;
+            }
+            else if (timeSinceFormation <= rotationTimings.initialDuration + rotationTimings.accelerationDuration + rotationTimings.pulsingDuration) {
+                // 阶段3: 脉动阶段 - 旋转速度忽快忽慢
+                const pulseTime = timeSinceFormation - (rotationTimings.initialDuration + rotationTimings.accelerationDuration);
+                const pulseProgress = pulseTime / rotationTimings.pulsingDuration;
                 
-                // 闪光效果
-                flashOpacity = 0.7; // 增加闪光初始不透明度
-                isFlashing = true;
+                // 脉动基础值 (0.08 ~ 0.13)
+                const basePulseRotation = 0.08 + pulseProgress * 0.05;
                 
-                // 准备爆发
-                setTimeout(() => {
-                    explosionStarted = true;
-                    explosionTime = performance.now();
+                // 添加正弦波变化，使旋转速度忽快忽慢
+                const pulseFactor = Math.sin(pulseTime * 1.5) * 0.03; // 正弦波振幅随时间增加
+                
+                rotationSpeed = basePulseRotation + pulseFactor;
+                rotationPhase = 2;
+            }
+            else if (timeSinceFormation <= totalRotationDuration) {
+                // 阶段4: 最终加速 - 快速达到最大速度
+                const finalTime = timeSinceFormation - (rotationTimings.initialDuration + rotationTimings.accelerationDuration + rotationTimings.pulsingDuration);
+                const finalProgress = finalTime / rotationTimings.finalDuration;
+                
+                // 指数函数加速到最大速度
+                rotationSpeed = 0.13 + (Math.pow(finalProgress, 2) * (maxRotationSpeed - 0.13));
+                rotationPhase = 3;
+            }
+            else {
+                // 最终阶段，触发爆炸效果
+                rotationSpeed = maxRotationSpeed;
+                
+                if (!shrinkStarted) {
+                    shrinkStarted = true;
                     
-                    // 闪光
-                    flashOpacity = 1.0; // 进一步增加爆炸闪光不透明度
+                    // 闪光效果
+                    flashOpacity = 0.7;
                     isFlashing = true;
                     
-                    // 初始化冲击波
-                    shockwaveRadius = radius;
-                    
-                    // 相机动画
-                    animateCamera();
-                }, 200);
+                    // 准备爆发
+                    setTimeout(() => {
+                        explosionStarted = true;
+                        explosionTime = performance.now();
+                        
+                        // 闪光
+                        flashOpacity = 1.0;
+                        isFlashing = true;
+                        
+                        // 初始化冲击波
+                        shockwaveRadius = radius;
+                        
+                        // 相机动画
+                        animateCamera();
+                    }, 200);
+                }
             }
+            
+            // 同步地球旋转速度，随着虫洞旋转加速而加速
+            const earthSpeedFactor = Math.min(1 + timeSinceFormation * 0.5, 6); // 最多加速到6倍
+            earthCurrentRotationSpeed = earthBaseRotationSpeed * earthSpeedFactor;
         }
         
         currentRotation += rotationSpeed * deltaTime;
@@ -890,25 +1458,16 @@ function createWormholeEffect() {
     function animateCamera() {
         const startTime = performance.now();
         const duration = 1500;
-        const startZ = camera.position.z;
+        // 使用当前相机位置而不是重新定义startZ和startY
+        const cameraStartZ = camera.position.z;
+        const cameraStartY = camera.position.y;
         const targetZ = 0.05;
-        
-        const startY = camera.position.y;
-        const targetY = startY - 1.5;
+        const targetY = cameraStartY - 1.5;
         
         controls.enabled = false;
+        cameraAnimationCompleted = false;
         
         let lastProgress = 0;
-        let cameraAnimationComplete = false;
-        
-        const escKeyHandler = (event) => {
-            if (event.key === 'Escape' && cameraAnimationComplete) {
-                resetView();
-                document.removeEventListener('keydown', escKeyHandler);
-            }
-        };
-        
-        document.addEventListener('keydown', escKeyHandler);
         
         function updateCamera() {
             const currentTime = performance.now();
@@ -921,8 +1480,8 @@ function createWormholeEffect() {
                 const easeProgress = easeOutExpo(progress);
                 const easeInProgress = easeInExpo(progress);
                 
-                camera.position.z = startZ * (1 - easeProgress) + targetZ * easeProgress;
-                camera.position.y = startY * (1 - easeProgress) + targetY * easeProgress;
+                camera.position.z = cameraStartZ * (1 - easeProgress) + targetZ * easeProgress;
+                camera.position.y = cameraStartY * (1 - easeProgress) + targetY * easeProgress;
                 
                 const scale = 1 + (easeProgress * easeProgress * 3);
                 earth.scale.set(scale, scale, scale);
@@ -935,7 +1494,7 @@ function createWormholeEffect() {
             if (progress < 1) {
                 requestAnimationFrame(updateCamera);
             } else {
-                cameraAnimationComplete = true;
+                cameraAnimationCompleted = true;
                 controls.enabled = true;
                 showEscapeHint();
                 
@@ -952,6 +1511,7 @@ function createWormholeEffect() {
     
     // 重置到原始视角
     function resetView() {
+        console.log("重置视图到初始状态");
         camera.position.z = startZ;
         camera.position.y = startY;
         
